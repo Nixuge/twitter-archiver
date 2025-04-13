@@ -8,6 +8,8 @@ from request.bookmarks_request import BookmarkRequest
 # remove tweets in the oringial json if they aren't here anymore
 # Except i like backing up shit :D
 
+#TODO: Make sure this works if saving multiple bookmark pages at once!!!
+
 class BookmarkSaver:
     user_id: str
 
@@ -17,8 +19,8 @@ class BookmarkSaver:
     # action_title: str
 
     previous_tweets: list[str]
-
     grabbed_tweets: list[Tweet]
+    new_bookmarks: list
 
     def __init__(self, user_id: str):
         self.user_id = user_id
@@ -54,6 +56,14 @@ class BookmarkSaver:
 
         print(f"Found {len(self.grabbed_tweets)} bookmarks")
 
+        self.new_bookmarks = [{
+            "author_id": x.tweet_poster.user_dict['rest_id'],
+            "author_screen_name": x.tweet_poster.user_dict['legacy']['screen_name'],
+            "tweet_id": x.tweet_dict['rest_id'],
+            "sort_index": x.sort_index
+        } for x in self.grabbed_tweets if x.sort_index not in ALREADY_KNOWN_BOOKMARK_SORT_INDEXES]
+        
+        print(f"New bookmark count: {len(self.new_bookmarks)}")
 
 
     def just_save_grabbed_and_prev_no_git(self):
@@ -62,16 +72,7 @@ class BookmarkSaver:
             tweet.tweet_poster.save_to_file()
             tweet.save_all_media()
         
-        new_bookmarks = [{
-            "author_id": x.tweet_poster.user_dict['rest_id'],
-            "author_screen_name": x.tweet_poster.user_dict['legacy']['screen_name'],
-            "tweet_id": x.tweet_dict['rest_id'],
-            "sort_index": x.sort_index
-        } for x in self.grabbed_tweets if x.sort_index not in ALREADY_KNOWN_BOOKMARK_SORT_INDEXES]
-        
-        print(f"New bookmark count: {len(new_bookmarks)}")
-
-        bookmarks = new_bookmarks + ALREADY_KNOWN_BOOKMARKS
+        bookmarks = self.new_bookmarks + ALREADY_KNOWN_BOOKMARKS
         print(f"Total bookmark count: {len(bookmarks)}")
 
         with open(f"{TWEETS_SAVE_PATH}/bookmarks.json", 'w') as f:
