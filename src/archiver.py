@@ -18,8 +18,6 @@ import utils
 
 
 # TODO: Save media including picture (? will attempt.)
-# TODO: Discord webhook on error.
-# TODO: make sure the constants eg in headers don't change.
 # TODO: Use DB with as keys rest_id (+user rest_id for bookmarks)
 # TODO: Find tweets with 4K videos/pictures
 

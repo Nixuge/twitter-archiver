@@ -16,7 +16,6 @@ from utils import Err
 # https://birdie0.github.io/discord-webhooks-guide/other/field_limits.html
 # Assuming the title + footer are less than 1904 chars in size
 
-# TODO: Instead of splitting upload on a pastebin like on website.
 
 class WebhookManager:
     webhook_queue: list[DiscordWebhook]

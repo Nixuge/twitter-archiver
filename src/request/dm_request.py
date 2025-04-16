@@ -31,7 +31,6 @@ class DmRequest:
     
     # Should do everything and handle error logging.
     # TODO: HANDLE ERRORS BETTER.
-    # TODO: Make sure bookmarks have the same parameters as normal tweets.
     def do_all(self):
         self.request_content()
 

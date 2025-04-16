@@ -138,7 +138,6 @@ class Tweet:
         if not os.path.exists(save_folder):
             os.makedirs(save_folder)
         if not os.path.exists(f"{save_folder}.git"):
-            # TODO: Handle when not found (also handle windows)
             os.system(f"cd {save_folder} && git init")
 
         

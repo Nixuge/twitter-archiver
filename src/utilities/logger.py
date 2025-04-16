@@ -68,8 +68,6 @@ class CustomFormatter(logging.Formatter):
 def empty(*kargs):
     print("/!\\Webhook Manager not set yet./!\\")
 
-
-# TODO: only log additional in file.
 class CustomLogger(logging.Logger):
     console_handler: logging.Handler
     file_handler: logging.Handler
