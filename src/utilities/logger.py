@@ -1,6 +1,9 @@
 import logging 
 from datetime import datetime
 import os
+from typing import Callable
+
+from constants import CLIENT_NAME
 
 def get_proper_logger(logger: logging.Logger, debugConsole: bool):
     logger.setLevel(logging.DEBUG)
@@ -11,7 +14,7 @@ def get_proper_logger(logger: logging.Logger, debugConsole: bool):
         ch.setLevel(logging.DEBUG)
     else:
         ch.setLevel(logging.INFO)
-    ch.setFormatter(CustomFormatterConsole())
+    ch.setFormatter(CustomFormatter(True))
     logger.addHandler(ch)
 
     if not os.path.exists("logs/"): os.mkdir("logs/")
@@ -21,7 +24,7 @@ def get_proper_logger(logger: logging.Logger, debugConsole: bool):
 
     ch = logging.FileHandler(f"logs/{dt_string}.log")
     ch.setLevel(logging.DEBUG)
-    ch.setFormatter(CustomFormatterFile())
+    ch.setFormatter(CustomFormatter(False))
     logger.addHandler(ch)
 
     return logger
@@ -38,43 +41,61 @@ class COLORS:
     underline = "\033[4m"
     reset = "\033[0m"
 
-#using format instead of strings bc otherwise vscode removes color for everything else
-format1 = "%(asctime)s [%(levelname)s] {}%(filename)s:%(lineno)s{} ".format(COLORS.underline, COLORS.reset)
-format2 = "%(message)s"
-
-def _get_correctly(prefix: str) -> str:
-    return prefix + format1 + prefix + format2 + COLORS.reset
-
-class CustomFormatterConsole(logging.Formatter):
-    FORMATS = {
-        logging.DEBUG: _get_correctly(COLORS.grey),
-        logging.INFO: _get_correctly(COLORS.cyan),
-        logging.WARNING: _get_correctly(COLORS.yellow),
-        logging.ERROR: _get_correctly(COLORS.red),
-        logging.CRITICAL: _get_correctly(COLORS.green) # used as a "success" print
+class CustomFormatter(logging.Formatter):
+    LOG_COLORS = {
+        logging.DEBUG: COLORS.grey,
+        logging.INFO: COLORS.cyan,
+        logging.WARNING: COLORS.yellow,
+        logging.ERROR: COLORS.red,
+        logging.CRITICAL: COLORS.pink,
     }
+    
+    is_console: bool
+    reset_color: str
+    underline_color: str
+    
+    def __init__(self, is_console_formatter: bool, fmt: str ="%(asctime)s %(levelname)s %(filename)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"):
+        self.is_console = is_console_formatter
+        if is_console_formatter:
+            self.reset_color = COLORS.reset
+            self.underline_color = COLORS.underline
+        else:
+            self.reset_color = ""
+            self.underline_color = ""
+        super().__init__(fmt, datefmt)
+    
+    def get_log_color(self, level: int):
+        if self.is_console:
+            return CustomFormatter.LOG_COLORS.get(level, COLORS.reset)
+        return ""
 
     def format(self, record):
-        log_fmt = self.FORMATS.get(record.levelno)
-        formatter = logging.Formatter(log_fmt)
-        return formatter.format(record).replace(".py", "")
+        log_color = self.get_log_color(record.levelno)
 
-class CustomFormatterFile(logging.Formatter):
-    format_ = "%(asctime)s [%(levelname)s] %(filename)s:%(lineno)s %(message)s"
+        # Format the message with the chosen color
+        record.msg = f"{record.msg}{self.reset_color}"
 
-    def format(self, record):
-        formatter = logging.Formatter(self.format_)
-        return formatter.format(record).replace(".py", "")
+        # Format the filename and line number with underline
+        record.filename = f"{self.underline_color}{record.filename.replace(".py", "")}:{record.lineno}{self.reset_color}"
+        record.levelname = f"{log_color}[{record.levelname}]{self.reset_color}"
+
+        return super().format(record)
 
 #thanks https://stackoverflow.com/a/56944275 & https://stackoverflow.com/a/287944
 
 
+# webhook_queue_func and empty here are to avoid circular imports.
+def empty(*kargs):
+    print("/!\\Webhook Manager not set yet./!\\")
+    pass
 
 
 # Actually filename not even used.
 class CustomLogger:
+    webhook_queue_func: Callable
     logger: logging.Logger
-    def __init__(self, filename: str) -> None:
+    def __init__(self, webhook_queue_func: Callable, filename: str) -> None:
+        self.webhook_queue_func = webhook_queue_func
         self.logger = get_proper_logger(logging.getLogger(filename), False)
 
     def debug(self, message: str):
@@ -83,14 +104,23 @@ class CustomLogger:
     def info(self, message: str):
         self.logger.info(message)
     
-    def warn(self, message: str):
-        self.logger.warning(message)
+    def warn(self, message: str, additional: str | None = None):
+        self.webhook_queue_func(logging.WARN, "An warning was triggered.", message, additional=additional, footer=f"On {CLIENT_NAME}")
+        # self.logger.warning(message)
+        # if additional:
+        #     self.logger.warning(additional)
     
-    def error(self, message: str):
-        self.logger.error(message)
+    def error(self, message: str, additional: str | None = None):
+        self.webhook_queue_func(logging.ERROR, "An error has occured.", message, additional=additional, footer=f"On {CLIENT_NAME}")
+        self.logger.error(message, additional)
+        if additional:
+            self.logger.error(additional)
     
-    def critical(self, message: str):
-        self.logger.critical(message)
+    def critical(self, message: str, additional: str | None = None):
+        self.webhook_queue_func(logging.CRITICAL, "A critical error has occured.", message, additional=additional, footer=f"On {CLIENT_NAME}")
+        self.logger.critical(message, additional)
+        if additional:
+            self.logger.critical(additional)
 
 
-LOGGER = CustomLogger("logger")
+LOGGER = CustomLogger(empty, "logger")

@@ -9,6 +9,8 @@ from objects.tweet import Tweet
 
 import urllib.parse
 
+from utilities.logger import LOGGER
+
 
 class BookmarkRequest:
     user_id: str
@@ -92,4 +94,4 @@ class BookmarkRequest:
                 if sort_index in ALREADY_KNOWN_BOOKMARK_SORT_INDEXES:
                     self.found_known_tweet = True
             else:
-                print("TODO: Unknown entry type.")
+                LOGGER.warn(f"Unknown entry type: {type} for entry: {json.dumps(entry)}", additional=json.dumps(self.content))

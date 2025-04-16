@@ -1,14 +1,15 @@
 import asyncio
 from curses.ascii import US
+import logging
 import os
 import time
 from constants import CLIENT_NAME, DM_SAVE_PATH, TWEETS_SAVE_PATH, USER_ID, USERS_SAVE_PATH
 from saver.bookmark_saver import BookmarkSaver
 from saver.dm_saver import DmSaver
 from saver.follow_tab_saver import Saver
-from utilities.webhook import cleanup, queue_webhook
+from utilities.logger import LOGGER
+from utilities.webhook import WEBHOOK_MANAGER
 import utils
-from utilities.logger import LOGGER, CustomLogger
 
 #TODO: make sure headers are legit (mainly change referer and see for bookmarks)
 
@@ -20,7 +21,7 @@ from utilities.logger import LOGGER, CustomLogger
 # TODO: Discord webhook on error.
 # TODO: make sure the constants eg in headers don't change.
 # TODO: Use DB with as keys rest_id (+user rest_id for bookmarks)
-# TODO: Find tweets with 4K, video, multiple videos.
+# TODO: Find tweets with 4K videos/pictures
 
 
 # TODO: handle fails here.
@@ -79,7 +80,7 @@ async def main():
         LOGGER.info(f"Updating the {updated} git repo...")
         os.system(f"cd {path} && git add . && git commit -m \"Updated {updated}: {time_rn}\"")
 
-    queue_webhook(True,
+    WEBHOOK_MANAGER.queue_webhook(logging.INFO,
                   "Done updating !", 
                   f"Stats:\n\
                     - Total followers: {len(saver_follower.grabbed)}\n\
@@ -91,9 +92,7 @@ async def main():
 
     LOGGER.info("Done updating git repos ! Now waiting to cleanup webhook tasks...")
         
-    await cleanup()
-
-    LOGGER.info("All done ! ")
+    WEBHOOK_MANAGER.terminate_gracefully()
 
 
 if __name__ == "__main__":
