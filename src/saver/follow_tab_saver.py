@@ -3,6 +3,7 @@ import json
 from constants import USER_ID, USERS_SAVE_PATH
 from objects.person import Person
 from request.follow_tab_request import FollowTabRequest
+from utilities.logger import LOGGER
 
 
 class Saver:
@@ -22,6 +23,7 @@ class Saver:
         self.grabbed = []
     
     def _perform_iteration(self, cursor: str | None = None):
+        LOGGER.debug("Performing iteration.")
         req = FollowTabRequest(
             user_id=USER_ID,
             action_id=self.action_id,
@@ -39,7 +41,7 @@ class Saver:
         while next_cursor:
             next_cursor = self._perform_iteration(next_cursor)
 
-        print(f"Found {len(self.grabbed)} {self.action_title}")
+        LOGGER.debug(f"Found {len(self.grabbed)} {self.action_title}")
 
     def just_save_grabbed_no_git(self):
         for person in self.grabbed:

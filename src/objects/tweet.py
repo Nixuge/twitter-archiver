@@ -7,7 +7,8 @@ from typing import Optional
 import httpx
 from constants import MEDIA_SAVE_PATH, TWEETS_SAVE_PATH
 from objects.person import Person
-from utils import format_url_universal_binbows
+from utilities.logger import LOGGER
+from utils import Err, format_url_universal_binbows
 
 
 class Tweet:
@@ -48,24 +49,25 @@ class Tweet:
             extended_media = []
         
         for file in media + extended_media:
-            if file['type'] == 'photo':
+            filetype = file["type"]
+            if filetype == 'photo':
                 thumb = file['media_url_https']
                 if thumb not in self.all_images:
                     self.all_images.append(thumb) 
               
-            elif file['type'] == 'animated_gif':
+            elif filetype == 'animated_gif':
                 thumb = file['media_url_https']
                 if thumb not in self.all_images:
                     self.all_images.append(thumb)
                 variants = file['video_info']['variants']
                 if len(variants) != 1:
-                    print(f"TODO: Weird variant count ({len(variants)} - {variants})")
+                    LOGGER.warn(f"Weird variant count for gif ({len(variants)} instead of 1: {variants}) {file}", additional=[Err("Variants", variants), Err("All content", tweet_dict)])
                 if len(variants) == 0:
                     continue
                 gif_url = variants[0]['url']
                 self.all_gifs.append(gif_url)
 
-            elif file['type'] == 'video':
+            elif filetype == 'video':
                 thumb = file['media_url_https']
                 if thumb not in self.all_images:
                     self.all_images.append(thumb)
@@ -87,16 +89,17 @@ class Tweet:
                                 raise Exception("Couldn't find match.")
                             pixel_count = int(match.group(1)) * int(match.group(2))
                         except:
-                            print(f"Couldn't get pixel count from url: {url}")
+                            LOGGER.error(f"Couldn't get pixel count from url: {url}", additional=[Err("Variant", variant), Err("File", file), Err("Tweet dict", self.tweet_dict)])
                         
                         qualities.append((pixel_count, bitrate, url))
                     else:
-                        print(f"TODO: Unknown content type: {content_type}")
+                        LOGGER.warn(f"Unknown content type for media: {content_type}", additional=[Err("Variant", variant), Err("File", file), Err("Tweet dict", self.tweet_dict)])
 
                 if len(qualities) == 0:
-                    print("TODO: no qualities found??")
                     if mpeg_variants > 0:
-                        print("TODO: mpeg varianats found tho.")
+                        LOGGER.error("Only (ungrabbed) MPEG variants founds on video.", additional=[Err("File", file), Err("Tweet dict", self.tweet_dict)])
+                    else:
+                        LOGGER.error("No quality found on video.", additional=[Err("File", file), Err("Tweet dict", self.tweet_dict)])
                     continue                    
 
                 qualities.sort(key=lambda x: (x[0], x[1]), reverse=True)
@@ -107,12 +110,12 @@ class Tweet:
                         best_bitrate = quality[1]
                 
                 if best_bitrate != best_video[1]:
-                    print(f"TODO: Best res doesn't have the best bitrate ? best {best_bitrate} vs choosen {best_video[1]}")
+                    LOGGER.warn(f"Best video resolution doesn't have the best bitrate ? Best {best_bitrate} vs choosen {best_video[1]}", additional=[Err("File", file), Err("Tweet dict", self.tweet_dict)])
                 
                 self.all_videos.append(best_video[2])
 
             else:
-                print("TODO: Handle unknown filetype")
+                LOGGER.error(f"Unknown filetype: {filetype}", additional=[Err("File", file), Err("Tweet dict", self.tweet_dict)])
 
 
 

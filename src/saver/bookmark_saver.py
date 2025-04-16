@@ -2,6 +2,7 @@ import json
 from constants import ALREADY_KNOWN_BOOKMARK_SORT_INDEXES, ALREADY_KNOWN_BOOKMARKS, TWEETS_SAVE_PATH, USER_ID
 from objects.tweet import Tweet
 from request.bookmarks_request import BookmarkRequest
+from utilities.logger import LOGGER
 
 # Flaw: Doesn't save deletions.
 # Fix: since we already stop when we hit a known id, just 
@@ -29,7 +30,7 @@ class BookmarkSaver:
         self.grabbed_tweets = []
     
     def _perform_iteration(self, cursor: str | None = None):
-        print("Performing iteration.")
+        LOGGER.debug("Performing iteration.")
         req = BookmarkRequest(
             user_id=USER_ID,
             cursor=cursor
@@ -38,8 +39,6 @@ class BookmarkSaver:
         req.do_all()
 
         self.grabbed_tweets += req.tweets
-        # print(json.dumps(req.tweets[0].tweet_dict))
-        # print(f"Found {len(req.tweets)} tweets (next: {req.next_cursor}, @{req.tweets[0].tweet_poster.user_dict["rest_id"]}, {req.tweets[0].tweet_dict["legacy"]["full_text"]})")
         return req.found_known_tweet, req.next_cursor
 
     def grab_all_for_action(self):
@@ -52,9 +51,9 @@ class BookmarkSaver:
             found_known_tweet, next_cursor = self._perform_iteration(next_cursor)
 
         if found_known_tweet:
-            print("Stopped prematurely.")
+            LOGGER.debug("Found previous tweet: stopped prematurely.")
 
-        print(f"Found {len(self.grabbed_tweets)} bookmarks")
+        LOGGER.debug(f"Found {len(self.grabbed_tweets)} bookmarks")
 
         self.new_bookmarks = [{
             "author_id": x.tweet_poster.user_dict['rest_id'],
@@ -63,7 +62,7 @@ class BookmarkSaver:
             "sort_index": x.sort_index
         } for x in self.grabbed_tweets if x.sort_index not in ALREADY_KNOWN_BOOKMARK_SORT_INDEXES]
         
-        print(f"New bookmark count: {len(self.new_bookmarks)}")
+        LOGGER.debug(f"New bookmark count: {len(self.new_bookmarks)}")
 
 
     def just_save_grabbed_and_prev_no_git(self):
@@ -73,7 +72,7 @@ class BookmarkSaver:
             tweet.save_all_media()
         
         bookmarks = self.new_bookmarks + ALREADY_KNOWN_BOOKMARKS
-        print(f"Total bookmark count: {len(bookmarks)}")
+        LOGGER.debug(f"Total bookmark count: {len(bookmarks)}")
 
         with open(f"{TWEETS_SAVE_PATH}/bookmarks.json", 'w') as f:
             json.dump(bookmarks, f, indent=4)

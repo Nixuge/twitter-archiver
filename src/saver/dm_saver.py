@@ -1,6 +1,7 @@
 from objects.dm_conversation import DmConversation
 from objects.dm_person import DmPerson
 from request.dm_request import DmRequest
+from utilities.logger import LOGGER
 
 
 # TODO: Save messages too.
@@ -13,7 +14,7 @@ class DmSaver:
         self.grabbed_conversations = []
     
     def _perform_iteration(self, start_id: str | None = None):
-        print("Performing iteration.")
+        LOGGER.debug("Performing iteration.")
         req = DmRequest(
             start_id=start_id
         )
@@ -30,7 +31,7 @@ class DmSaver:
         while next_id != None:
             next_id = self._perform_iteration(next_id)
 
-        print(f"Found {len(self.grabbed_conversations)} DM conversations.")
+        LOGGER.debug(f"Found {len(self.grabbed_conversations)} DM conversations.")
 
 
 

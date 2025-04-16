@@ -10,6 +10,7 @@ from objects.tweet import Tweet
 import urllib.parse
 
 from utilities.logger import LOGGER
+from utils import Err
 
 
 class BookmarkRequest:
@@ -40,7 +41,6 @@ class BookmarkRequest:
 
         vars += "includePromotedContent%22%3Atrue%7D" # true bc its like that on the web.
         self.vars = vars
-        # print(vars)
     
     # Should do everything and handle error logging.
     # TODO: HANDLE ERRORS BETTER.
@@ -72,7 +72,7 @@ class BookmarkRequest:
                 found_entries = True
                 self.parse_entries(instruction)
             else:
-                print("TODO: Unknown bookmark entry.")
+                LOGGER.warn(f"Unknown bookmark instruction type: {type}", additional=[Err("Instruction", instruction), Err("Request Content", self.content)])
 
         assert found_entries is True
                 
@@ -94,4 +94,4 @@ class BookmarkRequest:
                 if sort_index in ALREADY_KNOWN_BOOKMARK_SORT_INDEXES:
                     self.found_known_tweet = True
             else:
-                LOGGER.warn(f"Unknown entry type: {type} for entry: {json.dumps(entry)}", additional=json.dumps(self.content))
+                LOGGER.warn(f"Unknown bookmark entry type: {type}", additional=[Err("Current entry", entry), Err("All content", self.content)])

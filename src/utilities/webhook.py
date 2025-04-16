@@ -1,20 +1,22 @@
 import hashlib
+import json
 import logging
 import threading
 import time
 from typing import Optional
 from discord_webhook import DiscordEmbed, DiscordWebhook
+import httpx
 
-from constants import BAD_REPORT_URL, GOOD_REPORT_URL, WARN_REPORT_URL
+from constants import BAD_REPORT_URL, GOOD_REPORT_URL, WARN_REPORT_URL, WASTEBIN_LOG_URL
 from utilities.logger import LOGGER
+from utils import Err
 
 # WEBHOOK_TASKS: dict[str, list[DiscordWebhook]] = {}
 
-def split_string(input_string, chunk_size=4000):
-    return [input_string[i:i + chunk_size] for i in range(0, len(input_string), chunk_size)]
-
 # https://birdie0.github.io/discord-webhooks-guide/other/field_limits.html
 # Assuming the title + footer are less than 1904 chars in size
+
+# TODO: Instead of splitting upload on a pastebin like on website.
 
 class WebhookManager:
     webhook_queue: list[DiscordWebhook]
@@ -30,7 +32,7 @@ class WebhookManager:
         LOGGER.webhook_queue_func = self.queue_webhook
 
 
-    def queue_webhook(self, log_level: int, title: str, message: str, additional: Optional[str] = None, footer: Optional[str] = None):
+    def queue_webhook(self, log_level: int, title: str, message: str, additional: Optional[list[Err]]= None, footer: Optional[str] = None):
         if log_level == logging.DEBUG:
             url = GOOD_REPORT_URL
             color = "3fbf00"
@@ -46,55 +48,49 @@ class WebhookManager:
         else:
             url = BAD_REPORT_URL
             color = "fc0303"
-
             
         if not url:
             return
         
-        queue = []
+        if len(message) > 4096:
+            LOGGER.error("TOO FUCKING BIG WEBHOOK MESSAGE!", send_webhook=False)
+        
+        hook = DiscordWebhook(url=url, rate_limit_retry=True)
+        embed = DiscordEmbed(title=title, description=message, color=color)
+        if footer:
+            embed.set_footer(footer)
+            embed.set_timestamp()
+        
+        hook.add_embed(embed)
 
-        if len(message + f"\n\nAdditional content:\n```\n{additional}\n```") <= 4096:
-            queue.append(message + f"\n\nAdditional content:\n```\n{additional}\n```")
-        else:
-            w_id = hashlib.md5(message.encode('utf-8')).hexdigest()[:10]
-
-            # Message part.
-            message_splitted = split_string(message)
-            for part in message_splitted:
-                queue.append(part)
-
-            # Additional part.
-            # Note: Here we always put the rest on another message. Here we could use tha latest message's length, but meh.
-            additional_splitted = split_string(f"\n\nAdditional content:\n```\n{additional}")
-            for i, part in enumerate(additional_splitted):
-                if i == 0:
-                    part += "\n```"
-                else:
-                    part = f"```\n{part}\n```"
-                queue.append(part)
-
-
-            # Final.
-            partc = len(queue)
-            for i, part in enumerate(queue):
-                hook = DiscordWebhook(url=url, rate_limit_retry=True)
-
-                if partc == 1:
-                    ctitle = title
-                else:
-                    ctitle = f"{title} ({w_id}, {i+1}/{partc})"
-                embed = DiscordEmbed(title=ctitle, description=part, color=color)
-                if footer and not "```" in part: #don't add header to additional content.
-                    embed.set_footer(footer)
-                    embed.set_timestamp()
+        if additional and len(additional) > 0:
+            LOGGER.info(f"Uploading {len(additional)} pastes for webhook.")
+            for entry in additional:
+                try:
+                    upload = httpx.post(
+                        url = WASTEBIN_LOG_URL, 
+                        json={
+                            "text": json.dumps(entry.content, indent=4),
+                            "extension": "json",
+                            "title": title,
+                            "expires": 4294967295
+                        }
+                    )
+                    path = json.loads(upload.content.decode())["path"]
+                except Exception as e:
+                    LOGGER.error(f"Failed to upload text to wastebin: {e}", send_webhook=False)
+                    path = f"COULD NOT UPLOAD: {e}"
                 
-                hook.add_embed(embed)
-                # print("added hook")
-                self.webhook_queue.append(hook)
+                embed.add_embed_field(name=entry.name, value=f"[{path[1:]}]({WASTEBIN_LOG_URL + path})")
+
+            LOGGER.info(f"Done uploading pastes for webhook.")
+
+
+        self.webhook_queue.append(hook)
 
         return
 
-
+        
     def process_webhooks(self):
         # Note: ONLY sleep if havent done anything this time.
         while True:

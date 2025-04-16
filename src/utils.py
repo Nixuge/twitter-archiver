@@ -24,3 +24,11 @@ def format_url_universal_binbows(url: str) -> str:
     url_tag_fixed = f"{main_part}-tag={match.group(1)}.{extension}"
 
     return url_tag_fixed.replace("?", "QUESTION_MARK")
+
+
+class Err:
+    name: str
+    content: dict | list | str
+    def __init__(self, name: str, content: dict | list | str) -> None:
+        self.name = name
+        self.content = content

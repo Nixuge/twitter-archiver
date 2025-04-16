@@ -7,6 +7,8 @@ import httpx
 from constants import DM_INITIAL_URL_PARAMETERS, DM_TIMELINE_URL_PARAMETER, HEADERS
 from objects.dm_conversation import DmConversation
 from objects.dm_person import DmPerson
+from utilities.logger import LOGGER
+from utils import Err
 
 
 class DmRequest:
@@ -58,7 +60,7 @@ class DmRequest:
         elif status == "AT_END":
             pass
         else:
-            print("TODO: Warn, unknown status.")
+            LOGGER.warn(f"Unknown DM request status: {status}", additional=[Err("Data", data), Err("DM Request Content", content)])
         
         self._parse_shared(data)
 

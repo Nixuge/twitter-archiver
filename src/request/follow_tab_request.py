@@ -6,6 +6,9 @@ from constants import FEATURES, HEADERS
 from objects.person import Person
 import urllib.parse
 
+from utilities.logger import LOGGER
+from utils import Err
+
 
 class FollowTabRequest:
     user_id: str
@@ -34,7 +37,6 @@ class FollowTabRequest:
 
         vars += "includePromotedContent%22%3Afalse%7D"
         self.vars = vars
-        # print(vars)
 
     
     # Should do everything and handle error logging.
@@ -71,7 +73,7 @@ class FollowTabRequest:
                 found_entries = True
                 self.parse_entries(instruction)
             else:
-                print("TODO: UNKNOWN ENTRY.")
+                LOGGER.warn(f"Unknown follow tab ({self.action_name}) instruction type: {type}", additional=[Err("Instruction", instruction), Err("Request Content", self.content)])
         
 
         assert found_entries is True
@@ -97,4 +99,4 @@ class FollowTabRequest:
                 user_res = content['itemContent']['user_results']['result']
                 self.people.append(Person(user_res))
             else:
-                print("TODO: UNKNOWN ENTRY.")
+                LOGGER.warn(f"Unknown follow tab ({self.action_name}) entry type: {type}", additional=[Err("Current entry", entry), Err("Request Content", self.content)])
