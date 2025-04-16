@@ -1,34 +1,12 @@
 import logging 
 from datetime import datetime
 import os
+import sys
 from typing import Callable, Optional
 
-from constants import CLIENT_NAME
+from constants import CLIENT_NAME, DEBUG_CONSOLE
 from utils import Err
 
-def get_proper_logger(logger: logging.Logger, debugConsole: bool):
-    logger.setLevel(logging.DEBUG)
-    logger.propagate = False #avoid having multiple outputs
-
-    ch = logging.StreamHandler()
-    if debugConsole:
-        ch.setLevel(logging.DEBUG)
-    else:
-        ch.setLevel(logging.INFO)
-    ch.setFormatter(CustomFormatter(True))
-    logger.addHandler(ch)
-
-    if not os.path.exists("logs/"): os.mkdir("logs/")
-
-    now = datetime.now()
-    dt_string = now.strftime("%d-%m-%Y_%H.%M.%S")
-
-    ch = logging.FileHandler(f"logs/{dt_string}.log")
-    ch.setLevel(logging.DEBUG)
-    ch.setFormatter(CustomFormatter(False))
-    logger.addHandler(ch)
-
-    return logger
 
 class COLORS:
     pink = "\033[95m"
@@ -42,22 +20,23 @@ class COLORS:
     underline = "\033[4m"
     reset = "\033[0m"
 
+LOG_COLORS = {
+    logging.DEBUG: COLORS.grey,
+    logging.INFO: COLORS.cyan,
+    logging.WARNING: COLORS.yellow,
+    logging.ERROR: COLORS.red,
+    logging.CRITICAL: COLORS.pink,
+}
+
+
 class CustomFormatter(logging.Formatter):
-    LOG_COLORS = {
-        logging.DEBUG: COLORS.grey,
-        logging.INFO: COLORS.cyan,
-        logging.WARNING: COLORS.yellow,
-        logging.ERROR: COLORS.red,
-        logging.CRITICAL: COLORS.pink,
-    }
-    
     is_console: bool
     reset_color: str
     underline_color: str
     
     def __init__(self, is_console_formatter: bool, fmt: str ="%(asctime)s %(levelname)s %(filename)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"):
         self.is_console = is_console_formatter
-        if is_console_formatter:
+        if self.is_console:
             self.reset_color = COLORS.reset
             self.underline_color = COLORS.underline
         else:
@@ -67,7 +46,7 @@ class CustomFormatter(logging.Formatter):
     
     def get_log_color(self, level: int):
         if self.is_console:
-            return CustomFormatter.LOG_COLORS.get(level, COLORS.reset)
+            return LOG_COLORS.get(level, COLORS.reset)
         return ""
 
     def format(self, record):
@@ -88,48 +67,105 @@ class CustomFormatter(logging.Formatter):
 # webhook_queue_func and empty here are to avoid circular imports.
 def empty(*kargs):
     print("/!\\Webhook Manager not set yet./!\\")
-    pass
 
-# TODO: use logger extend to not overwrite filename/lineno
+
 # TODO: only log additional in file.
+class CustomLogger(logging.Logger):
+    console_handler: logging.Handler
+    file_handler: logging.Handler
 
-# Actually filename not even used.
-class CustomLogger:
     webhook_queue_func: Callable
-    logger: logging.Logger
-    def __init__(self, webhook_queue_func: Callable, filename: str) -> None:
+
+    def __init__(self, name: str, webhook_queue_func: Callable, level: int | str = logging.DEBUG) -> None:
         self.webhook_queue_func = webhook_queue_func
-        self.logger = get_proper_logger(logging.getLogger(filename), True)
+        super().__init__(name, level)
+        # Overwrite vars only AFTER the constructor is done.
+        self.propagate = False
+        self.console_handler = self._init_add_console_handler()
+        self.file_handler = self._init_add_file_handler()
+
+    def _init_add_console_handler(self):
+        sh = logging.StreamHandler()
+        if DEBUG_CONSOLE:
+            sh.setLevel(logging.DEBUG)
+        else:
+            sh.setLevel(logging.INFO)
+        sh.setFormatter(CustomFormatter(True))
+        self.addHandler(sh)
+        return sh
+        
+    def _init_add_file_handler(self):
+        if not os.path.exists("logs/"): 
+            os.mkdir("logs/")
+
+        now = datetime.now()
+        dt_string = now.strftime("%d-%m-%Y_%H.%M.%S")
+
+        fh = logging.FileHandler(f"logs/{dt_string}.log")
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(CustomFormatter(False))
+        self.addHandler(fh)
+        return fh
+
+    # Yoinked all from the logger's src
+    def _make_record(self, level, msg, args, exc_info=None, extra=None, stack_info=False, stacklevel=1):
+        sinfo = None
+        if logging._srcfile:
+            #IronPython doesn't track Python frames, so findCaller raises an
+            #exception on some versions of IronPython. We trap it here so that
+            #IronPython can use logging.
+            try:
+                fn, lno, func, sinfo = self.findCaller(stack_info, stacklevel)
+            except ValueError: # pragma: no cover
+                fn, lno, func = "(unknown file)", 0, "(unknown function)"
+        else: # pragma: no cover
+            fn, lno, func = "(unknown file)", 0, "(unknown function)"
+        if exc_info:
+            if isinstance(exc_info, BaseException):
+                exc_info = (type(exc_info), exc_info, exc_info.__traceback__)
+            elif not isinstance(exc_info, tuple):
+                exc_info = sys.exc_info()
+        record = self.makeRecord(self.name, level, fn, lno, msg, args,
+                                 exc_info, func, extra, sinfo)
+
+        return record
+    
+
+    def _emit(self, handler: logging.Handler, level, msg, args, exc_info = None, extra=None, stack_info=False, stacklevel=1):
+        record = self._make_record(level, msg, args, exc_info, extra, stack_info, stacklevel)
+        handler.emit(record)
+
+
+    def _log(self, level: int, message: str, additional: Optional[list[Err]] = None, send_webhook: bool = True, webhook_message: str = "", *args):
+        if send_webhook:
+            self.webhook_queue_func(level, webhook_message, message, additional=additional, footer=f"On {CLIENT_NAME}")
+        
+        self._emit(self.console_handler, level, message, args, stacklevel=5)
+        self._emit(self.file_handler, level, message, args, stacklevel=5)
+
+        if additional:
+            self._emit(self.console_handler, level, "Additional content has been logged to disk", args, stacklevel=5)
+            for thing in additional:
+                self._emit(self.file_handler, level, f"{thing.name}: {thing.content}", args, stacklevel=5)
+
 
     def debug(self, message: str):
-        self.logger.debug(message)
+        self._log(logging.DEBUG, message, send_webhook=False)
 
     def info(self, message: str):
-        self.logger.info(message)
-    
+        self._log(logging.INFO, message, send_webhook=False)
+
     def warn(self, message: str, additional: Optional[list[Err]] = None, send_webhook: bool = True):
-        if send_webhook:
-            self.webhook_queue_func(logging.WARN, "An warning was triggered.", message, additional=additional, footer=f"On {CLIENT_NAME}")
-        self.logger.warning(message)
-        if additional:
-            for thing in additional:
-                self.logger.warning(f"{thing.name}: {thing.content}")
+        self._log(logging.WARNING, message, additional, send_webhook, webhook_message="A warning was triggered.")
+
     
     def error(self, message: str,  additional: Optional[list[Err]] = None, send_webhook: bool = True):
-        if send_webhook:
-            self.webhook_queue_func(logging.ERROR, "An error has occured.", message, additional=additional, footer=f"On {CLIENT_NAME}")
-        self.logger.error(message)
-        if additional:
-            for thing in additional:
-                self.logger.error(f"{thing.name}: {thing.content}")
+        self._log(logging.ERROR, message, additional, send_webhook, webhook_message="An error has occured.")
+
     
-    def critical(self, message: str,  additional: Optional[list[Err]] = None, send_webhook: bool = True):
-        if send_webhook:
-            self.webhook_queue_func(logging.CRITICAL, "A critical error has occured.", message, additional=additional, footer=f"On {CLIENT_NAME}")
-        self.logger.critical(message)
-        if additional:
-            for thing in additional:
-                self.logger.critical(f"{thing.name}: {thing.content}")
+    def critical(self, message: str,  additional: Optional[list[Err]] = None, send_webhook: bool = True):  
+        self._log(logging.CRITICAL, message, additional, send_webhook, webhook_message="A critical error has occured.")
 
+    
 
-LOGGER = CustomLogger(empty, "logger")
+LOGGER = CustomLogger("logger", empty)
