@@ -29,6 +29,20 @@ def format_url_universal_binbows(url: str) -> str:
 def ddhhmmss_to_ss(dd: int = 0, hh: int = 0, mm: int = 0, ss: int = 0):
     return ss + mm * 60 + hh * 3600 + dd * 86400
 
+def ss_to_string(ss: int = 0):
+    final = ""
+    days = 0
+    hours = 0
+
+    if ss >= 86400:
+        days = ss//86400
+        final += f"{days}d"
+    if ss >= 3600:
+        hours = ss//3600
+        final += f"{hours - days*24}h"
+    
+    return f"{final}{ss//60 - days*3600 - hours*60}m{ss%60}s"
+
 class Err:
     name: str
     content: dict | list | str

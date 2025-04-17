@@ -26,6 +26,7 @@ import utils
 # Eg save to another dict & then move to main folder on success 
 async def main():
     start_time = time.time_ns()
+    WEBHOOK_MANAGER.start()
 
     saver_following = Saver(
         user_id=USER_ID,
@@ -93,5 +94,21 @@ async def main():
     WEBHOOK_MANAGER.terminate_gracefully()
 
 
+async def run_every_x_seconds(seconds: int):
+    while True:
+        # Doing it that way makes it so that we sure its been 4h exactly between runs.
+        time_last_iter = time.time_ns() // 1000000000
+        goal = time_last_iter + seconds
+
+        await main()
+
+        current_time = time.time_ns() // 1000000000
+        while current_time < goal:
+            print("\r                                ", end="") # Flushing while keeping cursor correct.
+            print(f"\rWaiting {utils.ss_to_string( goal - current_time )}", end="")
+            await asyncio.sleep(1)
+            current_time = time.time_ns() // 1000000000
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(run_every_x_seconds(utils.ddhhmmss_to_ss(hh=4)))
