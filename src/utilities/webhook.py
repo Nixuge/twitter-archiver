@@ -26,10 +26,11 @@ class WebhookManager:
         self.webhook_queue = []
         self.should_stop = False
         self.polling_rate = polling_rate
-        self.thread = threading.Thread(target=self.process_webhooks)
-        self.thread.start()
         LOGGER.webhook_queue_func = self.queue_webhook
 
+    def start(self):
+        self.thread = threading.Thread(target=self.process_webhooks)
+        self.thread.start()
 
     def queue_webhook(self, log_level: int, title: str, message: str, additional: Optional[list[Err]]= None, footer: Optional[str] = None):
         if log_level == logging.DEBUG:
@@ -70,9 +71,9 @@ class WebhookManager:
                         url = WASTEBIN_LOG_URL, 
                         json={
                             "text": json.dumps(entry.content, indent=4),
-                            "extension": "json",
+                            "extension": entry.extension,
                             "title": title,
-                            "expires": 4294967295
+                            "expires": 4294967295 # Can't be 0 in the api so max u32
                         }
                     )
                     path = json.loads(upload.content.decode())["path"]

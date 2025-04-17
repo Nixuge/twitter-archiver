@@ -1,6 +1,6 @@
 
 import json
-from typing import Optional
+from typing import Callable, Optional
 
 import httpx
 
@@ -21,6 +21,9 @@ class DmRequest:
     conversations: list[DmConversation]
     next_id: str | None
 
+    content: dict
+    processor: Callable
+
     def __init__(self, start_id: str | None = None):
         self.cursor = start_id
         self.next_id = None
@@ -32,24 +35,29 @@ class DmRequest:
     # Should do everything and handle error logging.
     # TODO: HANDLE ERRORS BETTER.
     def do_all(self):
-        self.request_content()
+        try:
+            self.request_content()
+            self.processor()
+        except Exception as e:
+            LOGGER.error(f"Couldn't perform/parse DMs request.", additional=[Err.from_exception(e), Err("Request Content", self.content)])
 
     def request_content(self):
         if self.cursor == None:
             url = "https://x.com/i/api/1.1/dm/user_updates.json" + DM_INITIAL_URL_PARAMETERS
-            processor = self._parse_initial
+            self.processor = self._parse_initial
         else:
             url = "https://x.com/i/api/1.1/dm/inbox_timeline/trusted.json" + DM_TIMELINE_URL_PARAMETER.replace("%MAX_ID%", self.cursor)
-            processor = self._parse_next
+            self.processor = self._parse_next
         
         r = httpx.get(url, headers=HEADERS)
         if (r.status_code != 200):
             raise Exception(f"Non 200 error code: {r.status_code}")
         
-        processor(json.loads(r.content.decode()))
+        self.content = json.loads(r.content.decode())
     
-    def _parse_initial(self, content: dict):
-        data = content["inbox_initial_state"]
+    def _parse_initial(self):
+        assert self.content is not None, "The content is empty. Make sure you've requested the content before."
+        data = self.content["inbox_initial_state"]
 
         # There's also untrusted & untrusted_low_quality but assuming
         # we don't rly need those.
@@ -59,7 +67,7 @@ class DmRequest:
         elif status == "AT_END":
             pass
         else:
-            LOGGER.warn(f"Unknown DM request status: {status}", additional=[Err("Data", data), Err("DM Request Content", content)])
+            LOGGER.warn(f"Unknown DM request status: {status}", additional=[Err("Data", data), Err("DM Request Content", self.content)])
         
         self._parse_shared(data)
 

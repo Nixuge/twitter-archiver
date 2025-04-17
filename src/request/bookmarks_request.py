@@ -45,8 +45,11 @@ class BookmarkRequest:
     # Should do everything and handle error logging.
     # TODO: HANDLE ERRORS BETTER.
     def do_all(self):
-        self.request_content()
-        self.perform_instructions()
+        try:
+            self.request_content()
+            self.perform_instructions()
+        except Exception as e:
+            LOGGER.error(f"Couldn't perform/parse bookmark request.", additional=[Err.from_exception(e), Err("Request Content", self.content)])
 
     def request_content(self):
         r = httpx.get(
@@ -59,7 +62,7 @@ class BookmarkRequest:
         self.content = json.loads(r.content.decode())
     
     def perform_instructions(self):
-        assert self.content is not None
+        assert self.content is not None, "The content is empty. Make sure you've requested the content before."
 
         found_entries = False
 
@@ -73,24 +76,27 @@ class BookmarkRequest:
             else:
                 LOGGER.warn(f"Unknown bookmark instruction type: {type}", additional=[Err("Instruction", instruction), Err("Request Content", self.content)])
 
-        assert found_entries is True
+        assert found_entries is True, "Couldn't find the entries instruction"
                 
     
     def parse_entries(self, entries_instruction):
         for entry in entries_instruction['entries']:
-            id: str = entry['entryId']
-            content = entry['content']
-            type: str = id.split("-")[0]
-            if type == "cursor":
-                cursor_type = content['cursorType']
-                if cursor_type == 'Bottom': # Ignore top ones, we always start at the top.
-                    self.next_cursor = content['value']
-            
-            elif type == "tweet":
-                sort_index = entry["sortIndex"]
-                user_res = content['itemContent']['tweet_results']['result']
-                self.tweets.append(Tweet(user_res, sort_index))
-                if sort_index in ALREADY_KNOWN_BOOKMARK_SORT_INDEXES:
-                    self.found_known_tweet = True
-            else:
-                LOGGER.warn(f"Unknown bookmark entry type: {type}", additional=[Err("Current entry", entry), Err("All content", self.content)])
+            try:
+                id: str = entry['entryId']
+                content = entry['content']
+                type: str = id.split("-")[0]
+                if type == "cursor":
+                    cursor_type = content['cursorType']
+                    if cursor_type == 'Bottom': # Ignore top ones, we always start at the top.
+                        self.next_cursor = content['value']
+                
+                elif type == "tweet":
+                    sort_index = entry["sortIndex"]
+                    user_res = content['itemContent']['tweet_results']['result']
+                    self.tweets.append(Tweet(user_res, sort_index))
+                    if sort_index in ALREADY_KNOWN_BOOKMARK_SORT_INDEXES:
+                        self.found_known_tweet = True
+                else:
+                    LOGGER.warn(f"Unknown bookmark entry type: {type}", additional=[Err("Current entry", entry), Err("All content", self.content)])
+            except Exception as e:
+                LOGGER.error(f"Couldn't parse bookmark entry of type {type}", additional=[Err.from_exception(e), Err("Current entry", entry), Err("Request Content", self.content)])

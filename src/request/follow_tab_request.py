@@ -42,8 +42,11 @@ class FollowTabRequest:
     # Should do everything and handle error logging.
     # TODO: HANDLE ERRORS BETTER.
     def do_all(self):
-        self.request_content()
-        self.perform_instructions()
+        try:
+            self.request_content()
+            self.perform_instructions()
+        except Exception as e:
+            LOGGER.error(f"Couldn't perform/parse follow tab ({self.action_name}) request.", additional=[Err.from_exception(e), Err("Request Content", self.content)])
 
     def request_content(self):
         r = httpx.get(
@@ -56,7 +59,7 @@ class FollowTabRequest:
         self.content = json.loads(r.content.decode())
     
     def perform_instructions(self):
-        assert self.content is not None
+        assert self.content is not None, "The content is empty. Make sure you've requested the content before."
 
         found_entries = False
 
@@ -76,27 +79,30 @@ class FollowTabRequest:
                 LOGGER.warn(f"Unknown follow tab ({self.action_name}) instruction type: {type}", additional=[Err("Instruction", instruction), Err("Request Content", self.content)])
         
 
-        assert found_entries is True
+        assert found_entries is True, "Couldn't find the entries instruction"
                 
     
     def parse_entries(self, entries_instruction):
         for entry in entries_instruction['entries']:
-            id: str = entry['entryId']
-            content = entry['content']
-            # type: str = "-".join(id.split("-")[:-1])
-            type: str = id.split("-")[0]
-            if type == "cursor":
-                cursor_type = content['cursorType']
-                if cursor_type == 'Bottom': # Ignore top ones, we always start at the top.
-                    # if first id is 0, that means we're at the bottom so all good.
-                    next_cursor_val = content['value']
-                    if next_cursor_val.split("|")[0] == '0':
-                        self.next_cursor = False
-                    else:
-                        self.next_cursor = next_cursor_val
-            
-            elif type == "user":
-                user_res = content['itemContent']['user_results']['result']
-                self.people.append(Person(user_res))
-            else:
-                LOGGER.warn(f"Unknown follow tab ({self.action_name}) entry type: {type}", additional=[Err("Current entry", entry), Err("Request Content", self.content)])
+            try:
+                id: str = entry['entryId']
+                content = entry['content']
+                # type: str = "-".join(id.split("-")[:-1])
+                type: str = id.split("-")[0]
+                if type == "cursor":
+                    cursor_type = content['cursorType']
+                    if cursor_type == 'Bottom': # Ignore top ones, we always start at the top.
+                        # if first id is 0, that means we're at the bottom so all good.
+                        next_cursor_val = content['value']
+                        if next_cursor_val.split("|")[0] == '0':
+                            self.next_cursor = False
+                        else:
+                            self.next_cursor = next_cursor_val
+                
+                elif type == "user":
+                    user_res = content['itemContent']['user_results']['result']
+                    self.people.append(Person(user_res))
+                else:
+                    LOGGER.warn(f"Unknown follow tab ({self.action_name}) entry type: {type}", additional=[Err("Current entry", entry), Err("Request Content", self.content)])
+            except Exception as e:
+                LOGGER.error(f"Couldn't parse follow tab ({self.action_name}) entry of type {type}", additional=[Err.from_exception(e), Err("Current entry", entry), Err("Request Content", self.content)])
