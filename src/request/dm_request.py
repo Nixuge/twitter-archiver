@@ -39,7 +39,7 @@ class DmRequest:
             self.request_content()
             self.processor()
         except Exception as e:
-            LOGGER.error(f"Couldn't perform/parse DMs request.", additional=[Err.from_exception(e), Err("Request Content", self.content)])
+            LOGGER.error(f"Couldn't perform/parse DMs request.", additional=[Err.from_exception(e), Err("Request Content", self.content if self.content is not None else "Empty...")])
 
     def request_content(self):
         if self.cursor == None:
@@ -72,8 +72,9 @@ class DmRequest:
         self._parse_shared(data)
 
 
-    def _parse_next(self, content: dict):
-        self._parse_shared(content["inbox_timeline"])
+    def _parse_next(self):
+        assert self.content is not None, "The content is empty. Make sure you've requested the content before."
+        self._parse_shared(self.content["inbox_timeline"])
     
     def _parse_shared(self, inner_content: dict):
         for _user_id, user_dict in inner_content["users"].items():
