@@ -99,7 +99,7 @@ class CustomLogger(logging.Logger):
         now = datetime.now()
         dt_string = now.strftime("%d-%m-%Y_%H.%M.%S")
 
-        fh = logging.FileHandler(f"logs/{dt_string}.log")
+        fh = logging.FileHandler(f"logs/{dt_string}.log", encoding="utf8")
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(CustomFormatter(False))
         self.addHandler(fh)
