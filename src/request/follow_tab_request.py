@@ -18,7 +18,7 @@ class FollowTabRequest:
     vars: str
 
     # Result
-    content: dict
+    content: dict | None
     people: list[Person]
     next_cursor: str | Literal[False] | None
 
@@ -30,6 +30,8 @@ class FollowTabRequest:
 
         self.people = []
         self.next_cursor = None
+
+        self.content = None
 
         vars = f"%7B%22userId%22%3A%22{user_id}%22%2C%22count%22%3A20%2C%22"
         if (cursor is not None):

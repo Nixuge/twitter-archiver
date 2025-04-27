@@ -45,11 +45,11 @@ def ss_to_string(ss: int = 0):
 
 class Err:
     name: str
-    content: dict | list | str
+    content: dict | list | str | None
     extension: str
     
     # Usually the extension is either json or txt, mostly json tho.
-    def __init__(self, name: str, content: dict | list | str, extension: str = "json") -> None:
+    def __init__(self, name: str, content: dict | list | str | None, extension: str = "json") -> None:
         self.name = name if name is not None else "Empty..."
         self.content = content if name is not None else "Empty..."
         self.extension = extension

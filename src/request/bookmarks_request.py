@@ -22,7 +22,7 @@ class BookmarkRequest:
     action_name = "Bookmarks"
     
     # Result
-    content: dict
+    content: dict | None
     tweets: list[Tweet]
     next_cursor: str | None
     found_known_tweet: bool
@@ -34,6 +34,8 @@ class BookmarkRequest:
 
         self.tweets: list[Tweet] = []
         self.next_cursor = None
+        
+        self.content = None
 
         vars = f"%7B%22count%22%3A20%2C%22"
         if (cursor is not None):
